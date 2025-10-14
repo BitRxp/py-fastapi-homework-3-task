@@ -197,7 +197,8 @@ async def reset_password_complete(
         await db.commit()
         raise HTTPException(status_code=400, detail="Invalid email or token.")
 
-    user.password = payload.password
+    # IMPORTANT: the model's setter validates strength and HASHES the password
+    user.password = payload.password # setter validates and HASHES the password
 
     await db.delete(reset_token)
 
