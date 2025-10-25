@@ -17,6 +17,7 @@ from database import (
 )
 from exceptions import BaseSecurityError
 from security.interfaces import JWTAuthManagerInterface
+from security.passwords import hash_password
 
 from exceptions.security import TokenExpiredError, InvalidTokenError
 from schemas.accounts import (
@@ -197,13 +198,14 @@ async def reset_password_complete(
         await db.commit()
         raise HTTPException(status_code=400, detail="Invalid email or token.")
 
-    # IMPORTANT: the model's setter validates strength and HASHES the password
-    user.password = payload.password  # setter validates and HASHES the password
+    # UserModel.password setter already hashes and validates password!
+    user.password = payload.password
 
     await db.delete(reset_token)
 
     try:
         await db.commit()
+        await db.refresh(user)
     except SQLAlchemyError:
         await db.rollback()
         raise HTTPException(
@@ -285,6 +287,9 @@ async def refresh(
         )
     )
     if not db_token:
+        raise HTTPException(status_code=401, detail="Refresh token not found.")
+
+    if db_token.user_id != user_id:
         raise HTTPException(status_code=401, detail="Refresh token not found.")
 
     user = await db.scalar(select(UserModel).where(UserModel.id == user_id))
